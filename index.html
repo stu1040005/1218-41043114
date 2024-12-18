@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代辦事項管理</title>
+    <!-- 引入 Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">代辦事項管理</h1>
+
+        <!-- 新增/修改代辦事項 -->
+        <div class="card shadow p-4 mb-4">
+            <h3 class="mb-3">新增或修改代辦事項</h3>
+            <form id="todoForm">
+                <input type="hidden" id="todoId" value=""> <!-- 隱藏欄位用於修改 -->
+                <div class="mb-3">
+                    <label for="task" class="form-label">任務：</label>
+                    <input type="text" id="task" name="task" class="form-control" placeholder="輸入任務內容" required>
+                </div>
+                <div class="mb-3">
+                    <label for="completed" class="form-label">完成狀態：</label>
+                    <select id="completed" name="completed" class="form-select">
+                        <option value="false">未完成</option>
+                        <option value="true">完成</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">提交</button>
+            </form>
+            <p id="responseMessage" class="mt-3 text-center"></p>
+        </div>
+
+        <!-- 代辦事項清單 -->
+        <div class="card shadow p-4">
+            <h3 class="mb-3">代辦事項清單</h3>
+            <ul id="todosList" class="list-group"></ul>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        const studentId = "41043114"; // 固定學號
+
+        // 更新代辦事項清單
+        async function fetchTodos() {
+            const apiUrl = `https://nfutest.pythonanywhere.com/todos?student_id=${studentId}`;
+            const todosList = document.getElementById('todosList');
+            todosList.innerHTML = ''; // 清空清單
+
+            try {
+                const response = await fetch(apiUrl);
+                if (response.status === 200) {
+                    const responseData = await response.json();
+                    if (responseData.todos.length > 0) {
+                        responseData.todos.forEach(todo => {
+                            const listItem = document.createElement('li');
+                            listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
+                            listItem.innerHTML = `
+                                <span>${todo.task}</span>
+                                <div>
+                                    <span class="badge ${todo.completed ? 'bg-success' : 'bg-warning'}">${todo.completed ? '完成' : '未完成'}</span>
+                                    <button class="btn btn-sm btn-warning ms-3" onclick="editTodo(${todo.id}, '${todo.task}', '${todo.completed}')">修改</button>
+                                    <button class="btn btn-sm btn-danger ms-2" onclick="deleteTodo(${todo.id})">刪除</button>
+                                </div>
+                            `;
+                            todosList.appendChild(listItem);
+                        });
+                    } else {
+                        todosList.innerHTML = '<li class="list-group-item text-center">沒有代辦事項</li>';
+                    }
+                } else {
+                    const error = await response.json();
+                    todosList.innerHTML = `<li class="list-group-item text-danger">獲取失敗: ${error.message}</li>`;
+                }
+            } catch (err) {
+                todosList.innerHTML = `<li class="list-group-item text-danger">請求失敗: ${err.message}</li>`;
+            }
+        }
+
+        // 編輯代辦事項
+        function editTodo(id, task, completed) {
+            document.getElementById('todoId').value = id; // 設置要修改的 ID
+            document.getElementById('task').value = task;
+            document.getElementById('completed').value = completed;
+            document.getElementById('responseMessage').innerHTML = `<span class="text-info">正在編輯任務 ID: ${id}</span>`;
+        }
+
+        // 新增或修改代辦事項
+        document.getElementById('todoForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const id = document.getElementById('todoId').value;
+            const task = document.getElementById('task').value;
+            const completed = document.getElementById('completed').value === 'true';
+
+            const apiUrl = id ? `https://nfutest.pythonanywhere.com/todos/${id}` : 'https://nfutest.pythonanywhere.com/todos'; // 判斷是新增還是修改
+            const method = id ? 'PUT' : 'POST';
+            const payload = { student_id: studentId, task, completed };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (response.status === 200 || response.status === 201) {
+                    const responseData = await response.json();
+                    const action = id ? '修改' : '新增';
+                    document.getElementById('responseMessage').innerHTML =
+                        `<span class="text-success">${action}成功！ID: ${responseData.id}, 任務: ${responseData.task}</span>`;
+                    
+                    // 清空表單
+                    document.getElementById('todoForm').reset();
+                    document.getElementById('todoId').value = '';
+                    
+                    // 刷新清單
+                    fetchTodos();
+                } else {
+                    const error = await response.json();
+                    document.getElementById('responseMessage').innerHTML = `<span class="text-danger">${id ? '修改' : '新增'}失敗: ${error.message}</span>`;
+                }
+            } catch (err) {
+                document.getElementById('responseMessage').innerHTML = `<span class="text-danger">請求失敗: ${err.message}</span>`;
+            }
+        });
+
+        // 刪除代辦事項
+        async function deleteTodo(id) {
+            const apiUrl = `https://nfutest.pythonanywhere.com/todos/${id}`;
+            const payload = { student_id: studentId };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (response.status === 200) {
+                    const responseData = await response.json();
+                    document.getElementById('responseMessage').innerHTML =
+                        `<span class="text-success">${responseData.message}</span>`;
+                    
+                    // 刷新清單
+                    fetchTodos();
+                } else {
+                    const error = await response.json();
+                    document.getElementById('responseMessage').innerHTML = `<span class="text-danger">刪除失敗: ${error.message}</span>`;
+                }
+            } catch (err) {
+                document.getElementById('responseMessage').innerHTML = `<span class="text-danger">請求失敗: ${err.message}</span>`;
+            }
+        }
+
+        // 預設載入代辦事項清單
+        fetchTodos();
+    </script>
+
+    <!-- 引入 Bootstrap JS（可選） -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
